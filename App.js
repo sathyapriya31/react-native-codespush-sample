@@ -14,6 +14,7 @@ import {
   View,
   Text,
   StatusBar,
+  TouchableOpacity,
 } from 'react-native';
 
 import {
@@ -23,8 +24,15 @@ import {
   DebugInstructions,
   ReloadInstructions,
 } from 'react-native/Libraries/NewAppScreen';
-
+import codePush from 'react-native-code-push';
+let codePushOptions = {checkFrequency: codePush.CheckFrequency.MANUAL};
 const App: () => React$Node = () => {
+  function onButtonPress() {
+    codePush.sync({
+      updateDialog: true,
+      installMode: codePush.InstallMode.IMMEDIATE,
+    });
+  }
   return (
     <>
       <StatusBar barStyle="dark-content" />
@@ -39,6 +47,9 @@ const App: () => React$Node = () => {
             </View>
           )}
           <View style={styles.body}>
+            <TouchableOpacity onPress={() => onButtonPress()}>
+              <Text>Check for updates</Text>
+            </TouchableOpacity>
             <View style={styles.sectionContainer}>
               <Text style={styles.sectionTitle}>Step One</Text>
               <Text style={styles.sectionDescription}>
@@ -111,4 +122,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default App;
+export default codePush(codePushOptions)(App);

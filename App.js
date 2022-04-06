@@ -6,7 +6,7 @@
  * @flow strict-local
  */
 
-import React from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   SafeAreaView,
   StyleSheet,
@@ -24,15 +24,74 @@ import {
   DebugInstructions,
   ReloadInstructions,
 } from 'react-native/Libraries/NewAppScreen';
-import codePush from 'react-native-code-push';
-let codePushOptions = {checkFrequency: codePush.CheckFrequency.MANUAL};
+import CodePush from 'react-native-code-push';
+let codePushOptions = {checkFrequency: CodePush.CheckFrequency.MANUAL};
 const App: () => React$Node = () => {
-  function onButtonPress() {
-    codePush.sync({
-      updateDialog: true,
-      installMode: codePush.InstallMode.IMMEDIATE,
-    });
+  const [restartAllowed, setRestartAllowed] = useState(true);
+  const [syncMessage, setSyncMessage] = useState('');
+  const [progress, setProgress] = useState(false);
+
+  function codePushStatusDidChange(syncStatus) {
+    switch (syncStatus) {
+      case CodePush.SyncStatus.CHECKING_FOR_UPDATE:
+        setSyncMessage('Checking for update.');
+        break;
+      case CodePush.SyncStatus.DOWNLOADING_PACKAGE:
+        setSyncMessage('Downloading package.');
+        break;
+      case CodePush.SyncStatus.AWAITING_USER_ACTION:
+        setSyncMessage('Awaiting user action.');
+        break;
+      case CodePush.SyncStatus.INSTALLING_UPDATE:
+        setSyncMessage('Installing update.');
+        break;
+      case CodePush.SyncStatus.UP_TO_DATE:
+        setSyncMessage('App up to date.');
+        setProgress(false);
+        break;
+      case CodePush.SyncStatus.UPDATE_IGNORED:
+        setSyncMessage('Update cancelled by user.');
+        setProgress(false);
+      case CodePush.SyncStatus.UPDATE_INSTALLED:
+        setSyncMessage('Update installed and will be applied on restart.');
+        setProgress(false);
+
+        break;
+      case CodePush.SyncStatus.UNKNOWN_ERROR:
+        setSyncMessage('An unknown error occurred.');
+        setProgress(false);
+        break;
+    }
   }
+
+  function codePushDownloadDidProgress(progress) {
+    setProgress(progress);
+  }
+
+  function toggleAllowRestart() {
+    restartAllowed ? CodePush.disallowRestart() : CodePush.allowRestart();
+
+    setRestartAllowed(!restartAllowed);
+  }
+
+  /** Update is downloaded silently, and applied on restart (recommended) */
+  function sync() {
+    CodePush.sync(
+      {},
+      codePushStatusDidChange.bind(this),
+      codePushDownloadDidProgress.bind(this),
+    );
+  }
+
+  /** Update pops a confirmation dialog, and then immediately reboots the app */
+  function syncImmediate() {
+    CodePush.sync(
+      {installMode: CodePush.InstallMode.IMMEDIATE, updateDialog: true},
+      codePushStatusDidChange.bind(this),
+      codePushDownloadDidProgress.bind(this),
+    );
+  }
+
   return (
     <>
       <StatusBar barStyle="dark-content" />
@@ -47,8 +106,23 @@ const App: () => React$Node = () => {
             </View>
           )}
           <View style={styles.body}>
-            <TouchableOpacity onPress={() => onButtonPress()}>
-              <Text>Check for updates</Text>
+            <TouchableOpacity onPress={sync.bind(this)}>
+              <Text style={styles.syncButton}>Press for background sync</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={syncImmediate.bind(this)}>
+              <Text style={styles.syncButton}>
+                Press for dialog-driven sync
+              </Text>
+            </TouchableOpacity>
+            {progress && (
+              <Text style={styles.messages}>
+                {progress.receivedBytes} of {progress.totalBytes} bytes received
+              </Text>
+            )}
+            <TouchableOpacity onPress={toggleAllowRestart.bind(this)}>
+              <Text style={styles.restartToggleButton}>
+                Restart {restartAllowed ? 'allowed' : 'forbidden'}
+              </Text>
             </TouchableOpacity>
             <View style={styles.sectionContainer}>
               <Text style={styles.sectionTitle}>Step One</Text>
@@ -120,6 +194,20 @@ const styles = StyleSheet.create({
     paddingRight: 12,
     textAlign: 'right',
   },
+  messages: {
+    marginTop: 30,
+    textAlign: 'center',
+  },
+  syncButton: {
+    color: 'green',
+    fontSize: 17,
+    margin: 10,
+  },
+  restartToggleButton: {
+    color: 'blue',
+    fontSize: 17,
+    margin: 10,
+  },
 });
 
-export default codePush(codePushOptions)(App);
+export default CodePush(codePushOptions)(App);

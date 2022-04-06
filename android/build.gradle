@@ -8,8 +8,12 @@ buildscript {
         targetSdkVersion = 29
     }
     repositories {
-        google()
+         google()
         jcenter()
+        maven {
+            url 'https://maven.google.com/'
+            name 'Google'
+        }
     }
     dependencies {
         classpath("com.android.tools.build:gradle:3.5.3")

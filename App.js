@@ -25,13 +25,16 @@ import {
   ReloadInstructions,
 } from 'react-native/Libraries/NewAppScreen';
 import CodePush from 'react-native-code-push';
-let codePushOptions = {checkFrequency: CodePush.CheckFrequency.MANUAL};
+let codePushOptions = {
+  checkFrequency: CodePush.CheckFrequency.ON_APP_RESUME,
+  installMode: CodePush.InstallMode.IMMEDIATE,
+};
 const App: () => React$Node = () => {
   const [restartAllowed, setRestartAllowed] = useState(true);
   const [syncMessage, setSyncMessage] = useState('');
   const [progress, setProgress] = useState(false);
 
-  function codePushStatusDidChange(syncStatus) {
+  async function codePushStatusDidChange(syncStatus) {
     switch (syncStatus) {
       case CodePush.SyncStatus.CHECKING_FOR_UPDATE:
         setSyncMessage('Checking for update.');
@@ -52,6 +55,13 @@ const App: () => React$Node = () => {
       case CodePush.SyncStatus.UPDATE_IGNORED:
         setSyncMessage('Update cancelled by user.');
         setProgress(false);
+        const update = await CodePush.checkForUpdate();
+        console.log(update);
+        if (update?.isMandatory) {
+          sync();
+        }
+        break;
+
       case CodePush.SyncStatus.UPDATE_INSTALLED:
         setSyncMessage('Update installed and will be applied on restart.');
         setProgress(false);
@@ -77,7 +87,7 @@ const App: () => React$Node = () => {
   /** Update is downloaded silently, and applied on restart (recommended) */
   function sync() {
     CodePush.sync(
-      {},
+      {installMode: CodePush.InstallMode.IMMEDIATE},
       codePushStatusDidChange.bind(this),
       codePushDownloadDidProgress.bind(this),
     );
@@ -85,8 +95,18 @@ const App: () => React$Node = () => {
 
   /** Update pops a confirmation dialog, and then immediately reboots the app */
   function syncImmediate() {
+    var updateDialogOptions = {
+      updateTitle: 'Update Available',
+      optionalUpdateMessage:
+        'An update is available. Would you like to install it?',
+      optionalIgnoreButtonLabel: 'Cancel',
+      optionalInstallButtonLabel: 'Okay',
+    };
     CodePush.sync(
-      {installMode: CodePush.InstallMode.IMMEDIATE, updateDialog: true},
+      {
+        installMode: CodePush.InstallMode.IMMEDIATE,
+        updateDialog: updateDialogOptions,
+      },
       codePushStatusDidChange.bind(this),
       codePushDownloadDidProgress.bind(this),
     );
@@ -116,14 +136,10 @@ const App: () => React$Node = () => {
             </TouchableOpacity>
             {progress && (
               <Text style={styles.messages}>
-                {progress.receivedBytes} of {progress.totalBytes} bytes received
+                {progress.receivedBytes} of {progress.totalBytes} bytes
+                received({(progress.receivedBytes / progress.totalBytes) * 100})
               </Text>
             )}
-            <TouchableOpacity onPress={toggleAllowRestart.bind(this)}>
-              <Text style={styles.restartToggleButton}>
-                Restart {restartAllowed ? 'allowed' : 'forbidden'}
-              </Text>
-            </TouchableOpacity>
             <View style={styles.sectionContainer}>
               <Text style={styles.sectionTitle}>Step One</Text>
               <Text style={styles.sectionDescription}>
